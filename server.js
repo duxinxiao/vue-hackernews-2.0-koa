@@ -52,14 +52,21 @@ function parseIndex(template) {
   }
 }
 
-const serve = (path, cache) => require('koa-static')(resolve(path), {
-  maxage: cache && isProd ? 60 * 60 * 24 * 30 : 0
-})
+const serve = (path, namespace, cache) => {
+  const config = {
+    maxage: cache && isProd ? 60 * 60 * 24 * 30 : 0,
+  }
+  if (namespace) {
+    config.namespace = namespace
+  }
+  return require('koa-static-namespace')(resolve(path), config)
+}
 
 app.use(compression({threshold: 0}))
-app.use(favicon('./logo-48.png'))
+app.use(favicon('./public/logo-48.png'))
 app.use(serve('./dist'))
-app.use(serve('./public'))
+app.use(serve('./dist', '/dist'))
+app.use(serve('./public', '/public'))
 app.use(serve('./manifest.json'))
 
 app.use(route.get('*', function *() {
@@ -95,32 +102,17 @@ app.use(route.get('*', function *() {
     console.log(`whole request: ${Date.now() - s}ms`)
   })
   renderStream.on('error', err => {
-
+    if (err && err.code === '404') {
+      stream.end('404 | Page Not Found')
+      this.status = 404
+      return
+    }
+    stream.end('Server Error')
+    this.status = err.code || 500
+    console.error(`error during render : ${this.req.url}`)
+    console.error(err)
   })
-  // renderStream.once('data', () => {
-  //   ctx.res.write(indexHTML.head)
-  // })
-  //
-  // renderStream.on('data', chunk => {
-  //   ctx.res.write(chunk)
-  // })
-  //
-  // renderStream.on('end', () => {
-  //   if (context.initialState) {
-  //     ctx.res.write(
-  //       `<script>window.__INITIAL_STATE__=${
-  //         serialize(context.initialState, {isJSON: true})
-  //         }</script>`
-  //     )
-  //   }
-  //   ctx.res.end(indexHTML.tail)
-  //   console.log(`whole request: ${Date.now() - s}ms`)
-  // })
-  //
-  // renderStream.on('error', err => {
-  //   this.status = err.status || 500;
-  //   this.body = err.message
-  // })
+  // renderStream.on('error', this.onerror)
 }))
 
 const port = process.env.PORT || 8080
