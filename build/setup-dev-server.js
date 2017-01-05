@@ -1,6 +1,7 @@
 const path = require('path')
 const webpack = require('webpack')
 const MFS = require('memory-fs')
+const convert = require('koa-convert')
 const clientConfig = require('./webpack.client.config')
 const serverConfig = require('./webpack.server.config')
 
@@ -15,14 +16,14 @@ module.exports = function setupDevServer (app, opts) {
 
   // dev middleware
   const clientCompiler = webpack(clientConfig)
-  const devMiddleware = require('webpack-dev-middleware')(clientCompiler, {
+  const devMiddleware = require('./webpack-dev-middlewar-koa-wrapper')(clientCompiler, {
     publicPath: clientConfig.output.publicPath,
     stats: {
       colors: true,
       chunks: false
     }
   })
-  app.use(devMiddleware)
+  app.use(convert(devMiddleware.koaMiddleware))
   clientCompiler.plugin('done', () => {
     const fs = devMiddleware.fileSystem
     const filePath = path.join(clientConfig.output.path, 'index.html')
@@ -33,7 +34,7 @@ module.exports = function setupDevServer (app, opts) {
   })
 
   // hot middleware
-  app.use(require('webpack-hot-middleware')(clientCompiler))
+  app.use(convert(require('koa-webpack-hot-middleware')(clientCompiler)))
 
   // watch and update server renderer
   const serverCompiler = webpack(serverConfig)
@@ -48,3 +49,5 @@ module.exports = function setupDevServer (app, opts) {
     opts.bundleUpdated(mfs.readFileSync(outputPath, 'utf-8'))
   })
 }
+
+
